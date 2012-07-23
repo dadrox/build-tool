@@ -1,0 +1,31 @@
+# maven generated
+target
+pom.xml.releaseBackup
+release.properties
+service/pom.xml.releaseBackup
+staging_release.sh
+webservice/pom.xml.releaseBackup
+
+# eclipse
+.eclipse
+.project
+.settings
+.classpath
+.scala_dependencies
+
+# vim swap and backups
+*.swp
+*~
+
+# sbt generated
+project/
+
+# other gitignore files (there can be only one)
+.gitignore
+
+.gradle
+.externalToolBuilders
+
+.cache
+
+*soap/src/main/java/
