@@ -9,59 +9,61 @@ import java.io.InputStream
 
 class BuildDefinitionTest extends Fictus {
 
-  val path = "build.yaml"
+    val path = "./build.yaml"
+    val version = "1.0"
+    val org = "com.dadrox"
 
-  val fileSource = mock[FileSource]
-  val unit = new Build(fileSource)
+    val fileSource = mock[FileSource]
+    val unit = new Build(fileSource)
 
-  @Test
-  def invalidYaml {
-    fileSource.asInputStream(path) --> Fails(Failure.NotFound, "")
+    @Test
+    def invalidYaml {
+        fileSource.asInputStream(path) --> Fails(Failure.NotFound, "")
 
-    unit.parse() mustMatch {
-      case Fails(Failure.NotFound, _, _) =>
+        test(unit.parse()) mustMatch {
+            case Fails(Failure.NotFound, _, _) =>
+        }
     }
-  }
 
-  @Test
-  def getRequiredSettings_present {
-
-    fileSource.asInputStream(path) ->
-      expectStream("""
+    @Test
+    def getRequiredSettings_present {
+        expectStream("""
             |settings:
-            |  versions: 1.0
-            |  org: com.dadrox
-            |  resolver: local(ENV_3RDPARTY_DIR""")
+            |  version: "1.0"
+            |  org: com.dadrox""")
 
-    
-    unit.parse mustMatch {
-      case Fails(Failure.NotFound, _, _) =>
+        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org)))
     }
-  }
 
-  @Test
-  def requiredSettings_missing_ {
+    @Test
+    def getRequiredSettings_missing_version {
+        expectStream("""settings:
+                        |  org: com.dadrox""")
 
-  }
+        test(unit.parse()) mustMatch {
+            case Fails(Failure.MissingVersion, _, _) =>
+        }
+    }
 
-  @Test
-  def getDefaultPaths {
+    @Test
+    def requiredSettings_missing_ {
 
-  }
+    }
 
-  @Test
-  def getOverriddenPaths {
+    @Test
+    def getDefaultPaths {
 
-  }
+    }
 
-  private def expectStream(conents: String): InputStream = {
-    val baos = new ByteArrayOutputStream
-    val printWriter = new PrintWriter(baos)
-    printWriter.print(conents)
-    new ByteArrayInputStream(baos.toByteArray)
-  }
+    @Test
+    def getOverriddenPaths {
 
-  val definition = """
+    }
+
+    private def expectStream(contents: String) =
+        fileSource.asInputStream(path) --> Succeeds(new ByteArrayInputStream(contents.stripMargin.getBytes))
+
+    val definition = """
 settings:
       # defaults
       src-root: src
