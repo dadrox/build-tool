@@ -58,7 +58,7 @@ object Dependencies {
     val junit = Seq(Test.junit, Test.junitInterface)
     val slf4j = Seq(grizzledSlf4j, slf4jApi, Test.logbackClassic)
 
-    val common = slf4j ++ junit :+ Test.easymock :+ twitterUtilCore
+    val common = slf4j ++ junit :+ Test.easymock :+ twitterUtilCore :+ Test.fictus
 
     val tool = Seq(snakeYaml)
 }

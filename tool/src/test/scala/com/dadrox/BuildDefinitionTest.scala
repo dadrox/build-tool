@@ -2,56 +2,66 @@ package com.dadrox
 
 import org.junit.Test
 import org.fictus.Fictus
+import java.io.ByteArrayOutputStream
+import java.io.PrintWriter
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 
 class BuildDefinitionTest extends Fictus {
 
-    val path = "build.yaml"
+  val path = "build.yaml"
 
-    val fileSource = mock[FileSource]
-    val unit = new Build(fileSource)
+  val fileSource = mock[FileSource]
+  val unit = new Build(fileSource)
 
-    @Test
-    def invalidYaml {
-        fileSource.openFile(path) --> Fails(Failure.NotFound, "")
+  @Test
+  def invalidYaml {
+    fileSource.asInputStream(path) --> Fails(Failure.NotFound, "")
 
-        unit.parse() mustMatch {
-            case Fails(Failure.NotFound, _, _) =>
-        }
+    unit.parse() mustMatch {
+      case Fails(Failure.NotFound, _, _) =>
     }
+  }
 
-    @Test
-    def getRequiredSettings_present {
+  @Test
+  def getRequiredSettings_present {
 
-        expectFile("""
+    fileSource.asInputStream(path) ->
+      expectStream("""
             |settings:
-            |  versions: 1.0""")
+            |  versions: 1.0
+            |  org: com.dadrox
+            |  resolver: local(ENV_3RDPARTY_DIR""")
 
-        unit.parse mustMatch {
-            case Fails(Failure.NotFound, _, _) =>
-        }
+    
+    unit.parse mustMatch {
+      case Fails(Failure.NotFound, _, _) =>
     }
+  }
 
-    @Test
-    def requiredSettings_missing_ {
+  @Test
+  def requiredSettings_missing_ {
 
-    }
+  }
 
-    @Test
-    def getDefaultPaths {
+  @Test
+  def getDefaultPaths {
 
-    }
+  }
 
-    @Test
-    def getOverriddenPaths {
+  @Test
+  def getOverriddenPaths {
 
-    }
+  }
 
-    private def expectFile(conents: String) = {
+  private def expectStream(conents: String): InputStream = {
+    val baos = new ByteArrayOutputStream
+    val printWriter = new PrintWriter(baos)
+    printWriter.print(conents)
+    new ByteArrayInputStream(baos.toByteArray)
+  }
 
-        fileSource.openFile(path) -->
-    }
-
-    val definition = """
+  val definition = """
 settings:
       # defaults
       src-root: src
