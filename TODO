@@ -1,0 +1,34 @@
+phases/lifecycle
+----------------
+clean
+init # create directories, etc
+generate-source
+process-resources
+compile-generated-source
+compile
+process-classes # coverage instrumentation?
+compile-test
+test
+integration-test
+jar
+war
+package?
+zip?
+verify # check code coverage, or whatev
+doc
+publish
+
+scopes
+------
+all # similar to maven and ivy compile, this is the default
+test 
+compile # compilation only
+provided # available for compilation only, provided by container, non-transitive
+runtime # not necessary for compile
+
+TODO
+----
+- plugins
+- plugin config
+- dep exclusions
+- dep grouping
