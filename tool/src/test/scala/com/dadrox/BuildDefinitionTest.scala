@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import org.yaml.snakeyaml.Yaml
 
 class BuildDefinitionTest extends Fictus {
 
@@ -27,21 +28,58 @@ class BuildDefinitionTest extends Fictus {
 
     @Test
     def getRequiredSettings_present {
-        expectStream("""
-            |settings:
-            |  version: "1.0"
-            |  org: com.dadrox""")
+        expectStream("""|settings:
+                        |  version: 1.0
+                        |  org: com.dadrox""")
 
         test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org)))
     }
 
     @Test
+    def versions_ok {
+        expectStream("""|settings:
+                        |  version: 1.0
+                        |  org: com.dadrox
+                        |
+                        |versions:
+                        |  fictus: 9.2
+                        |  finagle: 5.3
+                        |""")
+
+        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org), Paths(), Versions(Map(
+                        "fictus" -> "9.2",
+                        "finagle" -> "5.3"))))
+    }
+
+    @Test
+    def modules_ok {
+        expectStream("""|settings:
+                        |  version: 1.0
+                        |  org: com.dadrox
+                        |
+                        |modules:
+                        | - name: foo
+                        |   path: path
+                        |
+                        | - name: bar
+                        |   path: thepath
+                        |   modules: [blah]
+                        |   libraries: [a,b,c]
+                        |""")
+
+                        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org), Paths(), Versions(), List(
+                                        Module("foo", "path", Nil, Nil),
+                                        Module("bar", "thepath", List("blah"), List("a","b","c")))))
+    }
+
+
+    @Test
     def getRequiredSettings_missing_version {
-        expectStream("""settings:
+        expectStream("""|settings:
                         |  org: com.dadrox""")
 
         test(unit.parse()) mustMatch {
-            case Fails(Failure.MissingVersion, _, _) =>
+            case Fails(Failure.NotFound, _, _) =>
         }
     }
 
@@ -60,22 +98,59 @@ class BuildDefinitionTest extends Fictus {
 
     }
 
+    @Test
+    def yaml {
+        print("""|- a
+                 |- b
+                 |- c""")
+        print("1.0")
+        print("1")
+        print("yes")
+        print("YES")
+        print("true")
+        print("0")
+        print("yes and no")
+        print("""|- 1.0
+                |- 1
+                |- yes
+                |- foo""")
+        print("""|settings:
+                 | version: 1.0
+                 | org: com.dadrox
+                 | foo: bar
+                 | baz: fuz""")
+    }
+
+    @Test
+    def fullYaml {
+        val xx = Yxml.toXml(definition)
+        println(xx.asInstanceOf[Map[Any, Any]].mkString("\n"))
+    }
+
+    private def print(yaml: String) {
+        //        val a = new Yaml().load(new ByteArrayInputStream(yaml.stripMargin.getBytes))
+        val a = Yxml.toXml(yaml)
+        println(yaml + ", " + a + ", " + a.getClass)
+
+    }
+
     private def expectStream(contents: String) =
         fileSource.asInputStream(path) --> Succeeds(new ByteArrayInputStream(contents.stripMargin.getBytes))
 
     val definition = """
-settings:
+paths:
       # defaults
       src-root: src
       src: \{src-root}/main
       resources: \{src}/resources
-      test-src: \{src-root}/test
+      resources: \{src-root}/test
       test-resources: \{src}/resources
       output: target
       generated-src-dir: \{output}/generated-src
       output-classes: \{output}/classes
       output-test-classes: \{output}/test-classes
 
+settings:
       # required
       version: 1.0
       org: com.dadrox
@@ -94,49 +169,49 @@ libraries:
       compile:
       provided:         javax:servlet-api:2.5
       runtime:
+      test->default:
+        org.junit:junit:4.8
       test:
-            junit:            org.junit:junit:4.8
-            easymock:   org.easymock:easymock:3.0
+            junit:            org.junit:junit:4.8:test->default
+            easymock:   org.easymock:easymock:3.0:test->default
 
-project:
-   -name: cst
-      aggregate: api
-      plugins: [ war, scaladoc ]
+projects:
+   - name: cst
+     aggregate: [api]
+     plugins: [ war, scaladoc ]
 
-   -name: the-other-project
-      aggregate: utility, test-utility[test], model
-      plugins: [ war, scaladoc ]
+   - name: the-other-project
+     aggregate: utility, test-utility[test], model
+     plugins: [ war, scaladoc ]
 
-module:
-   -name: api
-      path: ./api
-      modules: utility, test-utility, model
-      libraries: servlet-api
-      artifactName: cst-api # overrides name for package
-      version: 2.0 # overrides global version, not recommended
-      org: overrideable?
+cst:
 
-   -name: utility
-      path: ./utility
-      modules: test-utility
-      libraries: [ junit, easymock, springx ]
+modules:
+   - name: api
+     path: ./api
+     modules: utility, test-utility, model
+     libraries: [ servlet-api ]
+     artifactName: cst-api # overrides name for package
+     version: 2.0 # overrides global version, not recommended
+     org: overrideable?
 
-   -name: test-utility
-      path: ./test-utility
-      modules:
-      libraries: [ junit:compile, easymock:compile ]
+   - name: utility
+     path: ./utility
+     modules: test-utility
+     libraries: [junit, easymock, springx]
 
-   -name: model
-      path: ./model
-      modules:
-            -utility
-            -test-utility
-      libraries:
+   - name: test-utility
+     path: ./test-utility
+     modules:
+     libraries: [ junit->compile, easymock-compile ]
 
-   -name:
-      path:
-      modules:
-      libraries:
+   - name: model
+     path: ./model
+     modules:
+            - utility
+            - test-utility
+     libraries:
+
         """
 
 }
