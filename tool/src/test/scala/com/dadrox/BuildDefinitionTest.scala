@@ -122,6 +122,11 @@ class BuildDefinitionTest extends Fictus {
                         |   path: core/model
                         |   modules: [ utility, test-utility ]
                         |   libraries: [ *common ]
+                        |
+                        | - name: http
+                        |   path: core/common/http
+                        |   modules: [ model, utility, test-utility ]
+                        |   libraries: [ *common, *finagle ]
                         |""")
 
         val joda = Library("joda-time", "joda-time", "1.6.2")
@@ -137,7 +142,12 @@ class BuildDefinitionTest extends Fictus {
                     easymock.copy(scope = Some("provided")),
                     joda),
                 Some("test")),
-            Module("model", "core/model", List("utility", "test-utility"), libraries = commonLibs))))
+            Module("model", "core/model", List("utility", "test-utility"), libraries = commonLibs),
+            Module("http", "core/common/http", List("model", "utility", "test-utility"),
+                libraries = commonLibs ++ List(
+                    Library("org.twitter", "finagle-core", "5.1.0"),
+                    Library("org.twitter", "finagle-http", "5.1.0"),
+                    Library("org.twitter", "finagle-memcached", "5.1.0"))))))
     }
 
     @Test
