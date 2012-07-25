@@ -41,7 +41,8 @@ case class RootKey(
 case class SubKey(
     override val name: String,
     override val parent: Some[Key])
-        extends Key
+        extends Key {
+}
 
 class Build(fileSource: FileSource = new FileProvider()) {
 
@@ -52,10 +53,10 @@ class Build(fileSource: FileSource = new FileProvider()) {
 
                 for {
                     settings <- yaml.settings
-                    paths <- Succeeds(yaml.paths)
-                    versions <- yaml.versions
+                    //                    paths <- Succeeds(yaml.paths)
+                    //                    versions <- yaml.versions
                     modules <- yaml.modules
-                } yield new BuildDefinition(settings, paths, versions, modules)
+                } yield new BuildDefinition(settings, modules)
 
             case wtf => Fails(Failure.NotFound, "Unable to find the build.yaml")
         }
@@ -66,169 +67,120 @@ class Yml(is: InputStream) {
     import org.yaml.snakeyaml.Yaml
     import java.io.InputStream
 
-    type Ymap = Jmap[String, Any]
-
-    val yaml = scalafied(is).asInstanceOf[Map[String, Any]]
+    val yaml = treeified(is)
 
     println(yaml)
 
-    private def missing(key: Key) = Fails(Failure.NotFound, key.path.mkString(":") + " is a required element of the build, bitch")
+    private def missing(key: Key) = Fails(Failure.NotFound, key + " is a required element of the build, bitch")
 
     def modules(): Response[List[Module]] = {
-        val xx = yaml.get(Key.Modules.name) match {
-            case None => Succeeds(Nil)
-            case Some(modules) => modules match {
-                case modules: List[_] => Response.collect {
-                    modules.map {
-                        case module: Map[String, _] => toModule(module)
-                        case wtf                    => Fails(Failure.Malformed, "Malformed module")
-                    }
+
+        def getRequired(mapped: Mapped, key: Key) = mapped.getLeaf(key.name) match {
+            case Some(value) => Succeeds(value)
+            case None        => missing(key)
+        }
+
+        yaml match {
+            case mapped: Mapped =>
+                mapped.getNode(Key.Modules.name) match {
+                    case Some(Node(modules)) =>
+                        val res = modules.map {
+                            case mod: Mapped =>
+                                for {
+                                    name <- getRequired(mod, Key.ModuleName)
+                                    path <- getRequired(mod, Key.ModulePath)
+                                    libraries <- {
+                                        mod.getNode(Key.ModuleLibraries.name) match {
+                                            case Some(libs) => Succeeds(toLibraries(libs))
+                                            case None       => Succeeds(Nil)
+                                        }
+                                    }
+                                    modules <- {
+                                        mod.getNode(Key.ModuleModules.name) match {
+                                            case Some(Node(mods)) =>
+                                                Succeeds(mods.flatMap {
+                                                    case Leaf(value) => List(value)
+                                                    case _           => Nil
+                                                })
+                                            case None => Succeeds(Nil)
+                                        }
+                                    }
+                                } yield Module(name, path, modules, libraries)
+                            case wtf => Fails(Failure.Malformed, "Malformed modules")
+                        }
+                        Response.collect(res)
+                    case wtf => missing(Key.Modules)
                 }
-                case wtf => Succeeds(Nil)
-            }
+            case wtf => missing(Key.Modules)
         }
-        println("XX=" + xx)
+    }
+
+    private def toLibraries(node: Node): List[Library] = {
+
+        println("lib node=" + node)
+
+        val xx = node.items.flatMap {
+            case Node(List(Leaf(org), Leaf(artifactName), Leaf(version), Leaf(scope))) =>
+                println("lib w/ scope")
+                List(Library(org, artifactName, version, LibraryScope.values.find(_.key == scope)))
+            case Node(List(Leaf(org), Leaf(artifactName), Leaf(version))) =>
+                println("lib w/o scope")
+                List(Library(org, artifactName, version))
+            case n: Node => toLibraries(n)
+            case wtf =>
+                println("WTF... library=" + wtf)
+                Nil
+        }
+        println("libs=" + xx)
         xx
-    }
-
-    private def toModule(module: Map[String, Any]): Response[Module] = {
-        module.get(Key.ModuleName.name) match {
-            case Some(name: String) => module.get(Key.ModulePath.name) match {
-                case Some(path: String) =>
-                    val libraries = module.get(Key.ModuleLibraries.name) match {
-                        case Some(Nil)                => Succeeds(Nil)
-                        case Some(list: List[String]) => Succeeds(list)
-                        case Some(s: String)          => Fails(Failure.Malformed, "In module " + name + ": libraries must be a list. E.g. [m1, m2]")
-                        case wtf                      => Succeeds(Nil)
-                    }
-                    val modules = module.get(Key.ModuleModules.name) match {
-                        case Some(Nil)                => Succeeds(Nil)
-                        case Some(list: List[String]) => Succeeds(list)
-                        case Some(s: String)          => Fails(Failure.Malformed, "In module " + name + ": modules must be a list. E.g. [m1, m2]")
-                        case wtf                      => Succeeds(Nil)
-                    }
-                    for {
-                        mods <- modules
-                        libs <- libraries
-                    } yield Module(name, path, mods, libs)
-
-                case nothing => missing(Key.ModulePath)
-            }
-            case nothing => missing(Key.ModuleName)
-        }
-    }
-
-    def versions(): Response[Versions] = {
-        yaml.get(Key.Versions.name) match {
-            case None => Succeeds(Versions())
-            case Some(versions) => versions match {
-                case versions: Map[String, String] => Succeeds(Versions(versions.asInstanceOf[Map[String, String]]))
-                case wtf                           => Fails(Failure.Malformed, "versions must be key value pairs")
-            }
-        }
     }
 
     def settings(): Response[Settings] = {
         val settings = for {
-            settings <- yaml.get(Key.Settings.name) match {
-                case Some(settings) => Some(settings.asInstanceOf[Map[String, String]])
-                case None           => None
+            settings <- yaml match {
+                case map: Mapped => map.getMapped(Key.Settings.name)
+                case _           => None
             }
-            name <- settings.get(Key.SettingsOrg.name)
-            org <- settings.get(Key.SettingsOrg.name)
-            version <- settings.get(Key.SettingsVersion.name)
+            name <- settings.getLeaf(Key.SettingsOrg.name)
+            org <- settings.getLeaf(Key.SettingsOrg.name)
+            version <- settings.getLeaf(Key.SettingsVersion.name)
         } yield Settings(version, org)
 
         settings match {
             case Some(settings) => Succeeds(settings)
             case None           => Fails(Failure.NotFound, "Awww")
         }
-
-        //        yaml.get(Key.Settings.name) match {
-        //            case None => missing(Key.Settings)
-        //            case Some(settings) => settings match {
-        //                case settings: Map[String, String] =>
-        //                    settings.get(Key.SettingsOrg.name) match {
-        //                        case None => missing(Key.SettingsOrg)
-        //                        case Some(org) => settings.get(Key.SettingsVersion.name) match {
-        //                            case Some(version) => Succeeds(Settings(version, org))
-        //                            case None          => missing(Key.SettingsVersion)
-        //                        }
-        //                    }
-        //                case wtf => missing(Key.Settings)
-        //            }
-        //        }
     }
 
     def paths(): Paths = {
-        yaml.get(Key.Paths.name) match {
-            case Some(paths) => paths match {
-                case paths: Map[String, String] =>
-                    Defaults(
-                        srcRoot = paths.get("src-root"),
-                        resources = paths.get("resources"),
-                        testSrc = paths.get("test-src"),
-                        testResources = paths.get("test-resources"),
-                        output = paths.get("output"),
-                        outputClasses = paths.get("output-classes"),
-                        outputTestClasses = paths.get("output-test-classes"))
-                case wtf => Paths()
-            }
-            case None => Paths()
-        }
 
         // HACKHACK
         Paths()
     }
 
-    private def scalafied(is: InputStream) = {
+    private def treeified(is: InputStream) = {
         val yaml = new Yaml().load(is)
+
+        println("raw=" + yaml)
+
         import scala.collection.JavaConverters.mapAsScalaMapConverter
         import scala.collection.JavaConverters.asScalaBufferConverter
-        def objectToXml(o: Any): Any = o match {
-            case list: java.util.List[_]  => list.asScala.map(objectToXml).toList
+
+        def objectToXml(o: Any): Tree = o match {
+            case list: java.util.List[_]  => Node(list.asScala.map(objectToXml).toList)
             //            case list: java.util.ArrayList[_] => list.asScala.map(objectToXml).toList
-            case map: java.util.Map[_, _] => (map.asScala.map { case (k, v) => objectToXml(k) -> objectToXml(v) }).toMap
+            case map: java.util.Map[_, _] => Mapped((map.asScala.map { case (k, v) => objectToXml(k) -> objectToXml(v) }).toMap)
+            //            case map: java.util.Map[_, _] => (map.asScala.map { case (k, v) => objectToXml(k) -> objectToXml(v) }).toMap
             //            case amap: java.util.LinkedHashMap[_, _] => (amap.asScala.map{case (k,v)=> objectToXml(k) -> objectToXml(v)}).toMap
-            case s: String                => s
-            case i: java.lang.Integer     => i.toString
-            case d: java.lang.Double      => d.toString
-            case b: java.lang.Boolean     => b.toString
-            case null                     => "CRAP"
+            case s: String                => Leaf(s)
+            case i: java.lang.Integer     => Leaf(i.toString)
+            case d: java.lang.Double      => Leaf(d.toString)
+            case b: java.lang.Boolean     => Leaf(b.toString)
+            case null                     => Leaf("CRAP")
         }
 
         objectToXml(yaml)
     }
-
-    //    def getRequired(key: Key): Response[String] = get(key) match {
-    //        case Some(value) => Succeeds(value)
-    //        case None        => Fails(Failure.NotFound, key.path.mkString(":") + " is a required element of the build, bitch")
-    //    }
-
-    //    def get(key: RootKey)
-    //    def get(key: Key): Option[String] = {
-    //        val path = key.path
-    //
-    //        println("path=" + path)
-    //
-    //        def get(names: List[String], current: Map[String, Any]): Option[String] = {
-    //            names match {
-    //                case lastOne :: Nil =>
-    //                    println("HERE")
-    //                    val xx = current.get(lastOne)
-    //                    println("HERE " + xx.getClass)
-    //                    xx.asInstanceOf[Option[String]]
-    //                case Nil => None
-    //                case more =>
-    //                    current.get(names.head) match {
-    //                        case Some(theMap) => get(names.tail, theMap.asInstanceOf[Ymap].asScala.toMap)
-    //                        case None         => None
-    //                    }
-    //
-    //            }
-    //        }
-    //        get(path, yaml.toMap)
-    //    }
 }
 
 object LibraryScope extends Enum {
@@ -243,8 +195,6 @@ object LibraryScope extends Enum {
 
 case class BuildDefinition(
     settings: Settings,
-    paths: Paths = Paths(),
-    versions: Versions = Versions(),
     modules: List[Module] = Nil)
 
 case class Settings(
@@ -254,22 +204,46 @@ case class Settings(
 case class LibraryToken(name: String, parsedThing: String)
 
 case class Library(
-    name: String,
     org: String,
     artifiactName: String,
     version: String,
-    scope: Option[LibraryScope.EnumVal])
+    scope: Option[LibraryScope.EnumVal] = Some(LibraryScope.All))
 
 case class Module(
     name: String,
     path: String,
     modules: List[String] = Nil,
-    libraries: List[String] = Nil)
+    libraries: List[Library] = Nil)
 
 case class Versions(versions: Map[String, String] = Map())
 
+sealed trait Tree
+case class Leaf(value: String) extends Tree {
+    override def toString: String = value.toString
+}
+case class Node(items: List[Tree]) extends Tree {
+    override def toString: String = "Node(" + items.mkString(", ") + ")"
+}
+case class Mapped(items: Map[Tree, Tree]) extends Tree {
+    override def toString: String = "Mapped(" + items.mkString(", ") + ")"
 
-
+    def getLeaf(key: String) = items.get(Leaf(key)) match {
+        case Some(Leaf(value)) => Some(value)
+        case _                 => None
+    }
+    def getMap(key: String) = items.get(Leaf(key)) match {
+        case Some(Mapped(value)) => Some(value)
+        case _                   => None
+    }
+    def getMapped(key: String) = items.get(Leaf(key)) match {
+        case Some(Mapped(value)) => Some(Mapped(value))
+        case _                   => None
+    }
+    def getNode(key: String) = items.get(Leaf(key)) match {
+        case Some(Node(value)) => Some(Node(value))
+        case _                 => None
+    }
+}
 
 
 
