@@ -73,6 +73,11 @@ class Yml(is: InputStream) {
 
     private def missing(key: Key) = Fails(Failure.NotFound, key + " is a required element of the build, bitch")
 
+    private def requiredRootKey(key: RootKey): Response[Mapped] = yaml match {
+        case mapped: Mapped => Succeeds(mapped)
+        case wtf            => missing(key)
+    }
+
     def modules(): Response[List[Module]] = {
 
         def getRequired(mapped: Mapped, key: Key) = mapped.getLeaf(key.name) match {
@@ -158,7 +163,7 @@ class Yml(is: InputStream) {
         Paths()
     }
 
-    private def treeified(is: InputStream) = {
+    private def treeified(is: InputStream): Tree = {
         val yaml = new Yaml().load(is)
 
         println("raw=" + yaml)

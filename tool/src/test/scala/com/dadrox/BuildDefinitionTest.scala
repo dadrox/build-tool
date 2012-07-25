@@ -49,12 +49,12 @@ class BuildDefinitionTest extends Fictus {
                         |    &finagleVersion 5.1.0
                         |
                         |libraries:
-                        |    ? &finagle-core          [ org.twitter, finagle-core, *finagleVersion ]
-                        |    ? &finagle-http          [ org.twitter, finagle-http, *finagleVersion ]
-                        |    ? &finagle-memcached     [ org.twitter, finagle-memcached, *finagleVersion ]
-                        |    ? &servlet-api        [javax-servlet,servlet-api,2.5,provided]
-                        |    ? &junit              [org.junit,junit,4.8,test]
-                        |    ? &easymock           [org.easymock,easymock,3.0,test]
+                        |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
+                        |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
+                        |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
+                        |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
+                        |    ? &junit              [ org.junit,junit,4.8,test ]
+                        |    ? &easymock           [ org.easymock,easymock,3.0,test ]
                         |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
                         |    ? &test-stuff         [ *easymock, *junit ]
                         |
@@ -62,6 +62,11 @@ class BuildDefinitionTest extends Fictus {
                         | - name: foo
                         |   path: path
                         |   libraries: [ *finagle, *test-stuff ]
+                        |
+                        | - name: bar
+                        |   path: barpath
+                        |   modules: [ foo ]
+                        |   libraries: [ *servlet-api ]
                         |""")
 
         test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org), modules = List(
@@ -69,10 +74,10 @@ class BuildDefinitionTest extends Fictus {
                 Library("org.twitter", "finagle-core", "5.1.0"),
                 Library("org.twitter", "finagle-http", "5.1.0"),
                 Library("org.twitter", "finagle-memcached", "5.1.0"),
-//                Library("javax-servlet", "servlet-api", "2.5", Some(LibraryScope.Provided)),
                 Library("org.easymock", "easymock", "3.0", Some(LibraryScope.Test)),
-                Library("org.junit", "junit", "4.8", Some(LibraryScope.Test))
-                )))))
+                Library("org.junit", "junit", "4.8", Some(LibraryScope.Test)))),
+            Module("bar", "barpath", List("foo"), libraries = List(
+                Library("javax-servlet", "servlet-api", "2.5", Some(LibraryScope.Provided)))))))
     }
 
     @Test
@@ -86,8 +91,13 @@ class BuildDefinitionTest extends Fictus {
     }
 
     @Test
-    def requiredSettings_missing_ {
+    def requiredSettings_missing_org {
+        expectStream("""|settings:
+                        |  version: 1.0""")
 
+        test(unit.parse()) mustMatch {
+            case Fails(Failure.NotFound, _, _) =>
+        }
     }
 
     @Test
