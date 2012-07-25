@@ -42,8 +42,8 @@ class BuildDefinitionTest extends Fictus {
     @Test
     def libraries_ok {
         expectStream("""|settings:
-                        |  version: 1.0
                         |  org: com.dadrox
+                        |  version: 1.0
                         |
                         |versions:
                         |    &finagleVersion 5.1.0
@@ -52,10 +52,12 @@ class BuildDefinitionTest extends Fictus {
                         |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
                         |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
                         |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
+                        |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
+                        |
                         |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
+                        |
                         |    ? &junit              [ org.junit,junit,4.8,test ]
                         |    ? &easymock           [ org.easymock,easymock,3.0,test ]
-                        |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
                         |    ? &test-stuff         [ *easymock, *junit ]
                         |
                         |modules:
@@ -74,10 +76,68 @@ class BuildDefinitionTest extends Fictus {
                 Library("org.twitter", "finagle-core", "5.1.0"),
                 Library("org.twitter", "finagle-http", "5.1.0"),
                 Library("org.twitter", "finagle-memcached", "5.1.0"),
-                Library("org.easymock", "easymock", "3.0", Some(LibraryScope.Test)),
-                Library("org.junit", "junit", "4.8", Some(LibraryScope.Test)))),
+                Library("org.easymock", "easymock", "3.0", Some("test")),
+                Library("org.junit", "junit", "4.8", Some("test")))),
             Module("bar", "barpath", List("foo"), libraries = List(
-                Library("javax-servlet", "servlet-api", "2.5", Some(LibraryScope.Provided)))))))
+                Library("javax-servlet", "servlet-api", "2.5", Some("provided")))))))
+    }
+
+    @Test
+    def realistic {
+        expectStream("""|settings:
+                        |  org: com.twc.cst
+                        |  version: 1.0
+                        |
+                        |versions:
+                        |    &finagleVersion 5.1.0
+                        |
+                        |libraries:
+                        |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
+                        |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
+                        |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
+                        |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
+                        |
+                        |    ? &jodaTime           [ joda-time, joda-time, 1.6.2 ]
+                        |
+                        |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
+                        |
+                        |    ? &junit              [ org.junit,junit,4.8,test ]
+                        |    ? &easymock           [ org.easymock,easymock,3.0,test ]
+                        |    ? &test-stuff         [ *easymock, *junit ]
+                        |
+                        |    ? &common             [ *jodaTime, *test-stuff ]
+                        |
+                        |modules:
+                        | - name: utility
+                        |   path: core/common/utility
+                        |   modules: [ test-utility ]
+                        |   libraries: [ *common ]
+                        |
+                        | - name: test-utility
+                        |   path: core/common/test-utility
+                        |   libraries: [ *junit:provided->default, *easymock:provided, *jodaTime ]
+                        |   scope: test
+                        |
+                        | - name: model
+                        |   path: core/model
+                        |   modules: [ utility, test-utility ]
+                        |   libraries: [ *common ]
+                        |""")
+
+        val joda = Library("joda-time", "joda-time", "1.6.2")
+        val junit = Library("org.junit", "junit", "4.8", Some("test"))
+        val easymock = Library("org.easymock", "easymock", "3.0", Some("test"))
+        val commonLibs = List(joda, easymock, junit)
+
+        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, "com.twc.cst"), modules = List(
+            Module("utility", "core/common/utility", List("test-utility"), libraries = commonLibs),
+            Module("test-utility", "core/common/test-utility", List(),
+                libraries = List(
+                    junit.copy(scope = Some("provided->default")),
+                    easymock.copy(scope = Some("provided")),
+                    joda),
+                Some("test")),
+            Module("model", "core/model", List("utility", "test-utility"), libraries = commonLibs))))
     }
 
     @Test

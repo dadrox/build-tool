@@ -18,6 +18,7 @@ object Key {
 
     val ModuleName = SubKey("name", Some(Modules))
     val ModulePath = SubKey("path", Some(Modules))
+    val ModuleScope = SubKey("scope", Some(Modules))
     val ModuleLibraries = SubKey("libraries", Some(Modules))
     val ModuleModules = SubKey("modules", Some(Modules))
 }
@@ -78,12 +79,13 @@ class Yml(is: InputStream) {
         case wtf            => missing(key)
     }
 
-    def modules(): Response[List[Module]] = {
+    private def getRequired(mapped: Mapped, key: Key) = mapped.getLeaf(key.name) match {
+        case Some(value) => Succeeds(value)
+        case None        => missing(key)
+    }
+    private def optional(mapped: Mapped, key: Key) = mapped.getLeaf(key.name)
 
-        def getRequired(mapped: Mapped, key: Key) = mapped.getLeaf(key.name) match {
-            case Some(value) => Succeeds(value)
-            case None        => missing(key)
-        }
+    def modules(): Response[List[Module]] = {
 
         yaml match {
             case mapped: Mapped =>
@@ -95,9 +97,10 @@ class Yml(is: InputStream) {
                                     name <- getRequired(mod, Key.ModuleName)
                                     path <- getRequired(mod, Key.ModulePath)
                                     libraries <- {
-                                        mod.getNode(Key.ModuleLibraries.name) match {
-                                            case Some(libs) => Succeeds(toLibraries(libs))
-                                            case None       => Succeeds(Nil)
+                                        mod.get(Key.ModuleLibraries.name) match {
+                                            case Some(libs: Node) => toLibraries(libs)
+                                            case Some(wtf)        => Fails(Failure.Malformed, "Libraries must be a list. E.g. [ *lib1, *lib2 ], Found: " + wtf)
+                                            case None             => Succeeds(Nil)
                                         }
                                     }
                                     modules <- {
@@ -110,7 +113,7 @@ class Yml(is: InputStream) {
                                             case None => Succeeds(Nil)
                                         }
                                     }
-                                } yield Module(name, path, modules, libraries)
+                                } yield Module(name, path, modules, libraries, optional(mod, Key.ModuleScope))
                             case wtf => Fails(Failure.Malformed, "Malformed modules")
                         }
                         Response.collect(res)
@@ -120,24 +123,51 @@ class Yml(is: InputStream) {
         }
     }
 
-    private def toLibraries(node: Node): List[Library] = {
+    private def toLibraries(node: Node): Response[List[Library]] = {
 
         println("lib node=" + node)
 
-        val xx = node.items.flatMap {
+        val libs: List[Response[List[Library]]] = node.items.map {
             case Node(List(Leaf(org), Leaf(artifactName), Leaf(version), Leaf(scope))) =>
                 println("lib w/ scope")
-                List(Library(org, artifactName, version, LibraryScope.values.find(_.key == scope)))
+                Succeeds(List(Library(org, artifactName, version, Some(scope))))
             case Node(List(Leaf(org), Leaf(artifactName), Leaf(version))) =>
                 println("lib w/o scope")
-                List(Library(org, artifactName, version))
+                Succeeds(List(Library(org, artifactName, version)))
             case n: Node => toLibraries(n)
+            case Mapped(map) =>
+                if (map.size > 1) Fails(Failure.Malformed, "Malformed library, must be a single entry, found=" + map)
+                else {
+                    val (k, v) = map.head
+                    val lib = k match {
+                        case Node(List(Leaf(org), Leaf(artifactName), Leaf(version), Leaf(scope))) =>
+                            println("lib w/ scope")
+                            Succeeds(Library(org, artifactName, version, Some(scope)))
+                        case Node(List(Leaf(org), Leaf(artifactName), Leaf(version))) =>
+                            println("lib w/o scope")
+                            Succeeds(Library(org, artifactName, version))
+                        case wtf     => Fails(Failure.Malformed, "Malformed library, must be a lib, found=" + wtf)
+                    }
+                    val scope = v match {
+                        case Leaf(scope) => Succeeds(scope)
+                        case wtf         => Fails(Failure.Malformed, "Malformed library, scope must be a string, found=" + wtf)
+                    }
+                    for {
+                        lib <- lib
+                        scope <- scope
+                    } yield List(lib.copy(scope = Some(scope)))
+                }
             case wtf =>
                 println("WTF... library=" + wtf)
-                Nil
+                Fails(Failure.Malformed, "Libraries must be a list. E.g. [ *lib1, *lib2 ], Found: " + wtf)
         }
-        println("libs=" + xx)
-        xx
+        println("libs=" + libs)
+        libs.find(_.isFailure) match {
+            case None => Succeeds(libs.flatMap(x => x.getSuccess))
+            case Some(failure) =>
+                val responseFailure = failure.getFail
+                Fails(responseFailure.failureType, responseFailure.msg, responseFailure.entireResponse)
+        }
     }
 
     def settings(): Response[Settings] = {
@@ -173,10 +203,7 @@ class Yml(is: InputStream) {
 
         def objectToXml(o: Any): Tree = o match {
             case list: java.util.List[_]  => Node(list.asScala.map(objectToXml).toList)
-            //            case list: java.util.ArrayList[_] => list.asScala.map(objectToXml).toList
             case map: java.util.Map[_, _] => Mapped((map.asScala.map { case (k, v) => objectToXml(k) -> objectToXml(v) }).toMap)
-            //            case map: java.util.Map[_, _] => (map.asScala.map { case (k, v) => objectToXml(k) -> objectToXml(v) }).toMap
-            //            case amap: java.util.LinkedHashMap[_, _] => (amap.asScala.map{case (k,v)=> objectToXml(k) -> objectToXml(v)}).toMap
             case s: String                => Leaf(s)
             case i: java.lang.Integer     => Leaf(i.toString)
             case d: java.lang.Double      => Leaf(d.toString)
@@ -212,13 +239,14 @@ case class Library(
     org: String,
     artifiactName: String,
     version: String,
-    scope: Option[LibraryScope.EnumVal] = Some(LibraryScope.All))
+    scope: Option[String] = None)
 
 case class Module(
     name: String,
     path: String,
     modules: List[String] = Nil,
-    libraries: List[Library] = Nil)
+    libraries: List[Library] = Nil,
+    scope: Option[String] = None)
 
 case class Versions(versions: Map[String, String] = Map())
 
@@ -248,6 +276,7 @@ case class Mapped(items: Map[Tree, Tree]) extends Tree {
         case Some(Node(value)) => Some(Node(value))
         case _                 => None
     }
+    def get(key: String) = items.get(Leaf(key))
 }
 
 
