@@ -110,13 +110,10 @@ class Yml(is: InputStream) extends CommonStuff {
         }
 
         for {
-            modulesMap <- parsedModules.map {
-                _.map { module =>
-                    module.name -> module.modules
-                }.toMap
-            }
-            modulesDag <- Succeeds(Dag.dag(modulesMap))
-            sortedParsedModules <- Succeeds(modulesDag.map(m=>parsedModules.getSuccess.find(_.name == m).get))
+            parsedModules <- parsedModules
+            modulesMap <- Succeeds(parsedModules.map { module => module.name -> module.modules }.toMap)
+            modulesDag <- Dag.dag(modulesMap)
+            sortedParsedModules <- Succeeds(modulesDag.map(m => parsedModules.find(_.name == m).get))
             modules <- {
                 @tailrec
                 def accumulateModules(acc: Map[String, Module], remaining: List[ParsedModule]): Map[String, Module] = {
@@ -135,14 +132,10 @@ class Yml(is: InputStream) extends CommonStuff {
 
     private def toLibraries(node: Node): Response[List[Library]] = {
 
-        println("lib node=" + node)
-
         val libs: List[Response[List[Library]]] = node.items.map {
             case Node(List(Leaf(org), Leaf(artifactName), Leaf(version), Leaf(scope))) =>
-                println("lib w/ scope")
                 Succeeds(List(Library(org, artifactName, version, Some(scope))))
             case Node(List(Leaf(org), Leaf(artifactName), Leaf(version))) =>
-                println("lib w/o scope")
                 Succeeds(List(Library(org, artifactName, version)))
             case n: Node => toLibraries(n)
             case Mapped(map) =>
@@ -151,10 +144,8 @@ class Yml(is: InputStream) extends CommonStuff {
                     val (k, v) = map.head
                     val lib = k match {
                         case Node(List(Leaf(org), Leaf(artifactName), Leaf(version), Leaf(scope))) =>
-                            println("lib w/ scope")
                             Succeeds(Library(org, artifactName, version, Some(scope)))
                         case Node(List(Leaf(org), Leaf(artifactName), Leaf(version))) =>
-                            println("lib w/o scope")
                             Succeeds(Library(org, artifactName, version))
                         case wtf => Fails(Failure.Malformed, "Malformed library, must be a lib, found=" + wtf)
                     }
@@ -168,10 +159,8 @@ class Yml(is: InputStream) extends CommonStuff {
                     } yield List(lib.copy(scope = Some(scope)))
                 }
             case wtf =>
-                println("WTF... library=" + wtf)
                 Fails(Failure.Malformed, "Libraries must be a list. E.g. [ *lib1, *lib2 ], Found: " + wtf)
         }
-        println("libs=" + libs)
         libs.find(_.isFailure) match {
             case None => Succeeds(libs.flatMap(_.getSuccess))
             case Some(failure) =>

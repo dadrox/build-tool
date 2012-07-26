@@ -5,7 +5,7 @@ import org.junit.Test
 
 class DagTest extends Fictus {
     @Test
-    def foo {
+    def works {
         val in = Map(
             "d" -> List("c"),
             "b" -> List("a"),
@@ -13,7 +13,17 @@ class DagTest extends Fictus {
             "e" -> List("d", "b"),
             "a" -> List(),
             "c" -> List("b", "a"))
-        println(in)
-        Dag.dag(in) mustEqual List("a", "b", "c", "d", "e", "f")
+        Dag.dag(in) mustEqual Succeeds(List("a", "b", "c", "d", "e", "f"))
+    }
+
+    @Test
+    def cycle {
+        val in = Map(
+            "b" -> List("c"),
+            "a" -> List(),
+            "c" -> List("b"))
+        Dag.dag(in) mustMatch {
+            case Fails(Failure.Malformed, _, _) =>
+        }
     }
 }
