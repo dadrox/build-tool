@@ -71,83 +71,87 @@ class BuildDefinitionTest extends Fictus {
                         |   libraries: [ *servlet-api ]
                         |""")
 
-        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, org), modules = List(
-            Module("foo", "path", List(), libraries = List(
-                Library("org.twitter", "finagle-core", "5.1.0"),
-                Library("org.twitter", "finagle-http", "5.1.0"),
-                Library("org.twitter", "finagle-memcached", "5.1.0"),
-                Library("org.easymock", "easymock", "3.0", Some("test")),
-                Library("org.junit", "junit", "4.8", Some("test")))),
-            Module("bar", "barpath", List("foo"), libraries = List(
-                Library("javax-servlet", "servlet-api", "2.5", Some("provided")))))))
+        val foo = Module("foo", "path", libraries = List(
+            Library("org.twitter", "finagle-core", "5.1.0"),
+            Library("org.twitter", "finagle-http", "5.1.0"),
+            Library("org.twitter", "finagle-memcached", "5.1.0"),
+            Library("org.easymock", "easymock", "3.0", Some("test")),
+            Library("org.junit", "junit", "4.8", Some("test"))))
+        val bar = Module("bar", "barpath", List(foo), libraries = List(
+            Library("javax-servlet", "servlet-api", "2.5", Some("provided"))))
+
+        test(unit.parse()) mustEqual Succeeds(
+            BuildDefinition(Settings(version, org), List(foo, bar)))
     }
 
     @Test
     def realistic {
         expectStream("""|settings:
-                        |  org: com.twc.cst
-                        |  version: 1.0
-                        |
-                        |versions:
-                        |    &finagleVersion 5.1.0
-                        |
-                        |libraries:
-                        |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
-                        |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
-                        |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
-                        |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
-                        |
-                        |    ? &jodaTime           [ joda-time, joda-time, 1.6.2 ]
-                        |
-                        |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
-                        |
-                        |    ? &junit              [ org.junit,junit,4.8,test ]
-                        |    ? &easymock           [ org.easymock,easymock,3.0,test ]
-                        |    ? &test-stuff         [ *easymock, *junit ]
-                        |
-                        |    ? &common             [ *jodaTime, *test-stuff ]
-                        |
-                        |modules:
-                        | - name: utility
-                        |   path: core/common/utility
-                        |   modules: [ test-utility ]
-                        |   libraries: [ *common ]
-                        |
-                        | - name: test-utility
-                        |   path: core/common/test-utility
-                        |   libraries: [ *junit:provided->default, *easymock:provided, *jodaTime ]
-                        |   scope: test
-                        |
-                        | - name: model
-                        |   path: core/model
-                        |   modules: [ utility, test-utility ]
-                        |   libraries: [ *common ]
-                        |
-                        | - name: http
-                        |   path: core/common/http
-                        |   modules: [ model, utility, test-utility ]
-                        |   libraries: [ *common, *finagle ]
-                        |""")
+                            |  org: com.twc.cst
+                            |  version: 1.0
+                            |
+                            |versions:
+                            |    &finagleVersion 5.1.0
+                            |
+                            |libraries:
+                            |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
+                            |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
+                            |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
+                            |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
+                            |
+                            |    ? &jodaTime           [ joda-time, joda-time, 1.6.2 ]
+                            |
+                            |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
+                            |
+                            |    ? &junit              [ org.junit,junit,4.8,test ]
+                            |    ? &easymock           [ org.easymock,easymock,3.0,test ]
+                            |    ? &test-stuff         [ *easymock, *junit ]
+                            |
+                            |    ? &common             [ *jodaTime, *test-stuff ]
+                            |
+                            |modules:
+                            | - name: utility
+                            |   path: core/common/utility
+                            |   modules: [ test-utility ]
+                            |   libraries: [ *common ]
+                            |
+                            | - name: test-utility
+                            |   path: core/common/test-utility
+                            |   libraries: [ *junit:provided->default, *easymock:provided, *jodaTime ]
+                            |   scope: test
+                            |
+                            | - name: model
+                            |   path: core/model
+                            |   modules: [ utility, test-utility ]
+                            |   libraries: [ *common ]
+                            |
+                            | - name: http
+                            |   path: core/common/http
+                            |   modules: [ model, utility, test-utility ]
+                            |   libraries: [ *common, *finagle ]
+                            |""")
 
         val joda = Library("joda-time", "joda-time", "1.6.2")
         val junit = Library("org.junit", "junit", "4.8", Some("test"))
         val easymock = Library("org.easymock", "easymock", "3.0", Some("test"))
         val commonLibs = List(joda, easymock, junit)
 
-        test(unit.parse()) mustEqual Succeeds(BuildDefinition(Settings(version, "com.twc.cst"), modules = List(
-            Module("utility", "core/common/utility", List("test-utility"), libraries = commonLibs),
-            Module("test-utility", "core/common/test-utility", List(),
-                libraries = List(
-                    junit.copy(scope = Some("provided->default")),
-                    easymock.copy(scope = Some("provided")),
-                    joda),
-                Some("test")),
-            Module("model", "core/model", List("utility", "test-utility"), libraries = commonLibs),
-            Module("http", "core/common/http", List("model", "utility", "test-utility"),
-                libraries = commonLibs ++ List(
-                    Library("org.twitter", "finagle-core", "5.1.0"),
-                    Library("org.twitter", "finagle-http", "5.1.0"),
-                    Library("org.twitter", "finagle-memcached", "5.1.0"))))))
+        val testUtility = Module("test-utility", "core/common/test-utility",
+            libraries = List(
+                junit.copy(scope = Some("provided->default")),
+                easymock.copy(scope = Some("provided")),
+                joda),
+            scope = Some("test"))
+        val utility = Module("utility", "core/common/utility", List(testUtility), libraries = commonLibs)
+        val model = Module("model", "core/model", List(utility, testUtility), libraries = commonLibs)
+        val http = Module("http", "core/common/http", List(model, utility, testUtility),
+            libraries = commonLibs ++ List(
+                Library("org.twitter", "finagle-core", "5.1.0"),
+                Library("org.twitter", "finagle-http", "5.1.0"),
+                Library("org.twitter", "finagle-memcached", "5.1.0")))
+
+        test(unit.parse()) mustEqual Succeeds(
+            BuildDefinition(Settings(version, "com.twc.cst"), List(testUtility, utility, model, http)))
     }
 
     @Test

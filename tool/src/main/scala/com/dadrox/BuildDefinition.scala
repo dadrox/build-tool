@@ -4,6 +4,7 @@ import java.io.File
 import java.util.{ Map => Jmap }
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import java.io.InputStream
+import scala.annotation.tailrec
 
 object Key {
     val Settings = RootKey("settings")
@@ -77,7 +78,7 @@ class Yml(is: InputStream) extends CommonStuff {
     println(yaml)
 
     def modules(): Response[List[Module]] = {
-        yaml.getNode(Key.Modules) match {
+        val parsedModules = yaml.getNode(Key.Modules) match {
             case Some(Node(modules)) =>
                 val res = modules.map {
                     case mod: Mapped =>
@@ -101,12 +102,35 @@ class Yml(is: InputStream) extends CommonStuff {
                                     case None => Succeeds(Nil)
                                 }
                             }
-                        } yield Module(name, path, modules, libraries, mod.optionalLeaf(Key.ModuleScope))
+                        } yield ParsedModule(name, path, modules, libraries, mod.optionalLeaf(Key.ModuleScope))
                     case wtf => Fails(Failure.Malformed, "Malformed modules")
                 }
                 Response.collect(res)
             case wtf => missing(Key.Modules)
         }
+
+        for {
+            modulesMap <- parsedModules.map {
+                _.map { module =>
+                    module.name -> module.modules
+                }.toMap
+            }
+            modulesDag <- Succeeds(Dag.dag(modulesMap))
+            sortedParsedModules <- Succeeds(modulesDag.map(m=>parsedModules.getSuccess.find(_.name == m).get))
+            modules <- {
+                @tailrec
+                def accumulateModules(acc: Map[String, Module], remaining: List[ParsedModule]): Map[String, Module] = {
+                    remaining match {
+                        case Nil => acc
+                        case some =>
+                            val m = some.head
+                            val module = Module(m.name, m.path, m.modules.map(acc), m.libraries, m.scope, m.transitive, m.compileTransitives)
+                            accumulateModules(acc + (module.name -> module), some.tail)
+                    }
+                }
+                Succeeds(accumulateModules(Map(), sortedParsedModules).values.toList)
+            }
+        } yield modules
     }
 
     private def toLibraries(node: Node): Response[List[Library]] = {
@@ -149,7 +173,7 @@ class Yml(is: InputStream) extends CommonStuff {
         }
         println("libs=" + libs)
         libs.find(_.isFailure) match {
-            case None => Succeeds(libs.flatMap(x => x.getSuccess))
+            case None => Succeeds(libs.flatMap(_.getSuccess))
             case Some(failure) =>
                 val responseFailure = failure.getFail
                 Fails(responseFailure.failureType, responseFailure.msg, responseFailure.entireResponse)
@@ -200,23 +224,14 @@ class Yml(is: InputStream) extends CommonStuff {
     }
 }
 
-object LibraryScope extends Enum {
-    sealed case class EnumVal private[LibraryScope] (key: String) extends Value
-
-    val Test = EnumVal("test")
-    val Provided = EnumVal("provided")
-    val All = EnumVal("")
-    val Compile = EnumVal("compile")
-    val Runtime = EnumVal("runtime")
-}
-
 case class BuildDefinition(
     settings: Settings,
     modules: List[Module] = Nil)
 
 case class Settings(
     version: String,
-    org: String)
+    org: String,
+    compileTransitives: Boolean = true)
 
 case class LibraryToken(name: String, parsedThing: String)
 
@@ -224,14 +239,26 @@ case class Library(
     org: String,
     artifiactName: String,
     version: String,
-    scope: Option[String] = None)
+    scope: Option[String] = None,
+    transitive: Boolean = true)
 
-case class Module(
+case class ParsedModule(
     name: String,
     path: String,
     modules: List[String] = Nil,
     libraries: List[Library] = Nil,
-    scope: Option[String] = None)
+    scope: Option[String] = None,
+    transitive: Boolean = true,
+    compileTransitives: Boolean = true)
+
+case class Module(
+    name: String,
+    path: String,
+    modules: List[Module] = Nil,
+    libraries: List[Library] = Nil,
+    scope: Option[String] = None,
+    transitive: Boolean = true,
+    compileTransitives: Boolean = true)
 
 case class Versions(versions: Map[String, String] = Map())
 
