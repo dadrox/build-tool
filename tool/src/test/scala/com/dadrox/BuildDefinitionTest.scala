@@ -171,7 +171,7 @@ class BuildDefinitionTest extends Fictus {
     }
 
     @Test
-    def yaml {
+    def yaml_testing {
         print("""|- a
                  |- b
                  |- c""")
@@ -193,15 +193,8 @@ class BuildDefinitionTest extends Fictus {
                  | baz: fuz""")
     }
 
-    @Test
-    def fullYaml {
-        val xx = Yxml.toXml(definition)
-        println(xx.asInstanceOf[Map[Any, Any]].mkString("\n"))
-    }
-
     private def print(yaml: String) {
-        //        val a = new Yaml().load(new ByteArrayInputStream(yaml.stripMargin.getBytes))
-        val a = Yxml.toXml(yaml)
+        val a = new Yaml().load(new ByteArrayInputStream(yaml.stripMargin.getBytes))
         println(yaml + ", " + a + ", " + a.getClass)
 
     }
