@@ -22,6 +22,7 @@ class IvyTest {
     configureIvy(ivy)
     val module = buildModuleDescriptor
     ivy.resolve(dumpIvy(module))
+    //look in /tmp for an ivy....xml file and see if it looks like an ivy file
   }
 
   def dumpIvy(moduleDescriptor: ModuleDescriptor): File = {
