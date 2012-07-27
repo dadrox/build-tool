@@ -39,6 +39,7 @@ object Dependency {
     // Compile
     val grizzledSlf4j = "org.clapper" %% "grizzled-slf4j" % "0.6.9"
     val logbackClassic = "ch.qos.logback" % "logback-classic" % "1.0.0" % "container->default"
+    val scalaIo = "com.github.scala-incubator.io" %% "scala-io" % "0.4.0"
     val slf4jApi = "org.slf4j" % "slf4j-api" % V.slf4j % "*->default"
     val snakeYaml = "org.yaml" % "snakeyaml" % "1.10"
     val twitterUtilCore = "com.twitter" % "util-core" % V.twitterUtil
@@ -60,7 +61,7 @@ object Dependencies {
 
     val common = slf4j ++ junit :+ Test.easymock :+ twitterUtilCore :+ Test.fictus
 
-    val tool = Seq(snakeYaml)
+    val tool = Seq(snakeYaml, scalaIo)
 }
 
 object CstBuild extends Build {
