@@ -2,21 +2,15 @@ phases/lifecycle
 ----------------
 clean
 init # create directories, etc
-generate-source
+validate
 process-resources
-compile-generated-source
 compile
-process-classes # coverage instrumentation?
 compile-test
 test
 integration-test
 jar
-war
 package?
-zip?
 verify # check code coverage, or whatev
-doc
-publish
 
 scopes
 ------
@@ -36,3 +30,17 @@ TODO
 - plugin config
 - dep exclusions
 - dep grouping
+
+plugin needs
+------------
+package (war, ear, zip)
+compile (java, scala)
+code generation
+code coverage
+code quality
+test framework integration (junit, testNG)
+publish
+deploy
+doc
+
+

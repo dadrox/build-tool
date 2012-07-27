@@ -87,49 +87,49 @@ class BuildDefinitionTest extends Fictus {
     @Test
     def realistic {
         expectStream("""|settings:
-                            |  org: com.twc.cst
-                            |  version: 1.0
-                            |
-                            |versions:
-                            |    &finagleVersion 5.1.0
-                            |
-                            |libraries:
-                            |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
-                            |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
-                            |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
-                            |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
-                            |
-                            |    ? &jodaTime           [ joda-time, joda-time, 1.6.2 ]
-                            |
-                            |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
-                            |
-                            |    ? &junit              [ org.junit,junit,4.8,test ]
-                            |    ? &easymock           [ org.easymock,easymock,3.0,test ]
-                            |    ? &test-stuff         [ *easymock, *junit ]
-                            |
-                            |    ? &common             [ *jodaTime, *test-stuff ]
-                            |
-                            |modules:
-                            | - name: utility
-                            |   path: core/common/utility
-                            |   modules: [ test-utility ]
-                            |   libraries: [ *common ]
-                            |
-                            | - name: test-utility
-                            |   path: core/common/test-utility
-                            |   libraries: [ *junit:provided->default, *easymock:provided, *jodaTime ]
-                            |   scope: test
-                            |
-                            | - name: model
-                            |   path: core/model
-                            |   modules: [ utility, test-utility ]
-                            |   libraries: [ *common ]
-                            |
-                            | - name: http
-                            |   path: core/common/http
-                            |   modules: [ model, utility, test-utility ]
-                            |   libraries: [ *common, *finagle ]
-                            |""")
+                        |  org: com.twc.cst
+                        |  version: 1.0
+                        |
+                        |versions:
+                        |    &finagleVersion 5.1.0
+                        |
+                        |libraries:
+                        |    ? &finagle-core       [ org.twitter, finagle-core, *finagleVersion ]
+                        |    ? &finagle-http       [ org.twitter, finagle-http, *finagleVersion ]
+                        |    ? &finagle-memcached  [ org.twitter, finagle-memcached, *finagleVersion ]
+                        |    ? &finagle            [ *finagle-core, *finagle-http, *finagle-memcached ]
+                        |
+                        |    ? &jodaTime           [ joda-time, joda-time, 1.6.2 ]
+                        |
+                        |    ? &servlet-api        [ javax-servlet,servlet-api,2.5,provided ]
+                        |
+                        |    ? &junit              [ org.junit,junit,4.8,test ]
+                        |    ? &easymock           [ org.easymock,easymock,3.0,test ]
+                        |    ? &test-stuff         [ *easymock, *junit ]
+                        |
+                        |    ? &common             [ *jodaTime, *test-stuff ]
+                        |
+                        |modules:
+                        | - name: utility
+                        |   path: core/common/utility
+                        |   modules: [ test-utility ]
+                        |   libraries: [ *common ]
+                        |
+                        | - name: test-utility
+                        |   path: core/common/test-utility
+                        |   libraries: [ *junit:provided->default, *easymock:provided, *jodaTime ]
+                        |   scope: test
+                        |
+                        | - name: model
+                        |   path: core/model
+                        |   modules: [ utility, test-utility ]
+                        |   libraries: [ *common ]
+                        |
+                        | - name: http
+                        |   path: core/common/http
+                        |   modules: [ model, utility, test-utility ]
+                        |   libraries: [ *common, *finagle ]
+                        |""")
 
         val joda = Library("joda-time", "joda-time", "1.6.2")
         val junit = Library("org.junit", "junit", "4.8", Some("test"))
