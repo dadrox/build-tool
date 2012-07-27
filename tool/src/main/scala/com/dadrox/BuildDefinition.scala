@@ -46,10 +46,15 @@ case class SubKey(
         extends Key {
 }
 
-class Build(fileSource: FileSource = new FileProvider()) {
+class Build(
+        fileSource: FileSource = new FileProvider(),
+        workingDirectory: File = new File(".")) {
+
+    val buildFile = new File(workingDirectory, "build.yaml")
+    val buildPath = buildFile.getCanonicalPath
 
     def parse(): Response[BuildDefinition] = {
-        fileSource.asInputStream("./build.yaml") match {
+        fileSource.asInputStream(buildPath) match {
             case Succeeds(is) =>
                 val yaml = new Yml(is)
 

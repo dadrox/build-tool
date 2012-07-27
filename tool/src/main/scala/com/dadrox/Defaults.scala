@@ -1,5 +1,37 @@
 package com.dadrox
 
+/*
+/src/main/scala
+         /resources
+    /test/scala
+         /resources
+    /it/scala
+       /resources
+/target/classes
+       /resources
+       /test-classes
+
+
+
+/src/scala
+    /resources
+/test/scala
+     /resources
+/it/scala
+   /resources
+
+/target/classes
+       /resources
+       /test-classes
+ */
+
+
+object New {
+    val src = "src/main"
+    val resources = "src/main/resources"
+
+}
+
 object Defaults {
     val srcRoot = "src"
     val src = srcRoot + "/main"

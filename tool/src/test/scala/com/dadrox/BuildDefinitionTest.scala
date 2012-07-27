@@ -19,7 +19,7 @@ class BuildDefinitionTest extends Fictus {
 
     @Test
     def invalidYaml {
-        fileSource.asInputStream(path) --> Fails(Failure.NotFound, "")
+        fileSource.asInputStream(*) --> Fails(Failure.NotFound, "")
 
         test(unit.parse()) mustMatch {
             case Fails(Failure.NotFound, _, _) =>
@@ -204,7 +204,7 @@ class BuildDefinitionTest extends Fictus {
     }
 
     private def expectStream(contents: String) =
-        fileSource.asInputStream(path) --> Succeeds(new ByteArrayInputStream(contents.stripMargin.getBytes))
+        fileSource.asInputStream(*) --> Succeeds(new ByteArrayInputStream(contents.stripMargin.getBytes))
 
     val definition = """
 paths:
@@ -246,8 +246,6 @@ projects:
    - name: the-other-project
      aggregate: utility, test-utility[test], model
      plugins: [ war, scaladoc ]
-
-cst:
 
 modules:
    - name: api

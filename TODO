@@ -28,6 +28,10 @@ runtime # not necessary for compile
 
 TODO
 ----
+- filesystem io
+- DAG
+- transitive dependency config
+- more formal yaml parsing
 - plugins
 - plugin config
 - dep exclusions

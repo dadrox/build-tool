@@ -8,6 +8,8 @@ import java.io.InputStreamReader
 
 trait FileSource {
     def asInputStream(path: String): Response[InputStream]
+
+    def file(path: String): File
 }
 
 class FileProvider extends FileSource {
@@ -22,4 +24,6 @@ class FileProvider extends FileSource {
             inputStream <- Succeeds(new FileInputStream(file))
         } yield inputStream
     }
+
+    override def file(path: String): File = new File(path)
 }
