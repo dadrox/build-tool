@@ -27,5 +27,6 @@ project/
 .externalToolBuilders
 
 .cache
+ivy-cache/
 
 *soap/src/main/java/
